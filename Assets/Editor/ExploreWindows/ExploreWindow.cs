@@ -69,6 +69,12 @@ public abstract class ExploreWindow<T> : EditorWindow
 
 	protected virtual void OnGUI()
 	{
+		if (!m_skin)
+		{
+			EditorGUILayout.HelpBox("ExploreWindow.guiskin not found.", MessageType.Error);
+			return;
+		}
+
 		using (new EditorGUILayout.HorizontalScope())
 		{
 			GUILayout.Space(12);
@@ -90,7 +96,6 @@ public abstract class ExploreWindow<T> : EditorWindow
 	// abstract methods
 	//------------------------------------------------------
 
-	protected abstract MonoScript GetScript();
 	protected abstract Column[] GetColumns();
 	protected abstract List<T> GetItemList();
 	protected abstract void DrawHeader();
@@ -179,13 +184,21 @@ public abstract class ExploreWindow<T> : EditorWindow
 
 	void InitGUI()
 	{
-		// GUISKINにアクセスしたいだけなのにMonoScriptを取得する関数を実装してもらわないといけないのは辛い
-		// それに違うフォルダに作られたらアクセスできないし
-		// > やっぱりPostProcessor作って検知するしかなさそう
-		var scriptPath = AssetDatabase.GetAssetPath(GetScript());
-		m_skin = AssetDatabase.LoadAssetAtPath<GUISkin>(
-			string.Format("{0}/ExploreWindow.guiskin", Path.GetDirectoryName(scriptPath)));
+		var skinGUIDs = AssetDatabase.FindAssets("ExploreWindow t:guiskin");
+		if (skinGUIDs.Length == 0)
+		{
+			Debug.LogError("ExplorerWindow.guiskin not found");
+			return;
+		}
 
+		// とりあえず警告だけで最初の使おう
+		if (skinGUIDs.Length > 1)
+		{
+			Debug.LogWarning("ExploreWindow.guiskin exists multiply.");
+		}
+
+		m_skin = AssetDatabase.LoadAssetAtPath<GUISkin>(
+			AssetDatabase.GUIDToAssetPath(skinGUIDs[0]));
 		m_labelStyle = m_skin.FindStyle("Hi Label");
 	}
 

@@ -85,11 +85,6 @@ public sealed class CanvasExplorer : ExploreWindow<Canvas>
 	// abstract methods
 	//------------------------------------------------------
 
-	protected override MonoScript GetScript()
-	{
-		return MonoScript.FromScriptableObject(this);
-	}
-
 	protected override Column[] GetColumns()
 	{
 		switch (m_renderMode)

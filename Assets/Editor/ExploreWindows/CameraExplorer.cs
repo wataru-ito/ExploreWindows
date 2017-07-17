@@ -60,11 +60,6 @@ public sealed class CameraExplorer : ExploreWindow<Camera>
 	// abstract methods
 	//------------------------------------------------------
 
-	protected override MonoScript GetScript()
-	{
-		return MonoScript.FromScriptableObject(this);
-	}
-
 	protected override Column[] GetColumns()
 	{
 		return m_columns;
