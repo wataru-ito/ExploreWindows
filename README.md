@@ -8,8 +8,8 @@ LightingExplorerが便利だったので、他のコンポーネントのエク�
 * Camera Explorer
 * Canvas Explorer
 
-![CameraExplorer](https://github.com/wataru-ito/ExploreWindows/edit/master/camera_explorer.png)!
-![CanvasExplorer](https://github.com/wataru-ito/ExploreWindows/edit/master/canvas_explorer.png)!
+![CameraExplorer](https://github.com/wataru-ito/ExploreWindows/blob/master/camera_explorer.jpg)!
+![CanvasExplorer](https://github.com/wataru-ito/ExploreWindows/blob/master/canvas_explorer.jpg)!
 
 
 
