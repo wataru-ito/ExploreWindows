@@ -37,7 +37,6 @@ namespace ExplorerWindows
 
 		protected List<T> m_itemList = new List<T>();
 
-		GUISkin m_skin;
 		protected GUIStyle m_labelStyle;
 		Vector2 m_scrollPosition;
 		Rect m_scrollRect;
@@ -71,9 +70,9 @@ namespace ExplorerWindows
 
 		protected virtual void OnGUI()
 		{
-			if (!m_skin)
+			if (m_labelStyle == null)
 			{
-				EditorGUILayout.HelpBox("ExploreWindow.guiskin not found.", MessageType.Error);
+				EditorGUILayout.HelpBox("guiskin initialize failed.", MessageType.Error);
 				return;
 			}
 
@@ -186,22 +185,14 @@ namespace ExplorerWindows
 
 		void InitGUI()
 		{
-			var skinGUIDs = AssetDatabase.FindAssets("ExploreWindow t:guiskin");
-			if (skinGUIDs.Length == 0)
-			{
-				Debug.LogError("ExplorerWindow.guiskin not found");
-				return;
-			}
+			// 以前は自前のguiskinを持っていたが、free/proのスキン切替失念してた。
+			// 今のスキンから複製する方が安い
+			var skin = EditorGUIUtility.GetBuiltinSkin(EditorSkin.Inspector);
+			var style = skin.FindStyle("Hi Label");
+			if (style == null) return;
 
-			// とりあえず警告だけで最初の使おう
-			if (skinGUIDs.Length > 1)
-			{
-				Debug.LogWarning("ExploreWindow.guiskin exists multiply.");
-			}
-
-			m_skin = AssetDatabase.LoadAssetAtPath<GUISkin>(
-				AssetDatabase.GUIDToAssetPath(skinGUIDs[0]));
-			m_labelStyle = m_skin.FindStyle("Hi Label");
+			m_labelStyle = new GUIStyle(style);
+			m_labelStyle.padding.left = 4;
 		}
 
 		void DrawList()
