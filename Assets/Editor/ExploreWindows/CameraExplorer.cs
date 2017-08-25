@@ -17,7 +17,7 @@ namespace ExplorerWindows
 		// static function
 		//------------------------------------------------------
 
-		[MenuItem("Window/Camera Explorer")]
+		[MenuItem("Window/Explorer/Camera Explorer")]
 		public static CameraExplorer Open()
 		{
 			return GetWindow<CameraExplorer>();

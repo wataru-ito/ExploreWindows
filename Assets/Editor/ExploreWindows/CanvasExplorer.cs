@@ -32,7 +32,7 @@ namespace ExplorerWindows
 		// static function
 		//------------------------------------------------------
 
-		[MenuItem("Window/Canvas Explorer")]
+		[MenuItem("Window/Explorer/Canvas Explorer")]
 		public static CanvasExplorer Open()
 		{
 			return GetWindow<CanvasExplorer>();
