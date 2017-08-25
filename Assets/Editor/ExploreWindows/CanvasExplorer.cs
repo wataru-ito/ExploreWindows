@@ -99,15 +99,15 @@ namespace ExplorerWindows
 			}
 		}
 
-		protected override List<Canvas> GetItemList()
+		protected override List<Canvas> GetItemList(List<Canvas> prev) 
 		{
 			if (m_lockList)
 			{
-				m_itemList.RemoveAll(i => i == null);
-				return m_itemList;
+				prev.RemoveAll(i => i == null);
+				return prev;
 			}
 
-			var tmp = new List<Canvas>(Resources.FindObjectsOfTypeAll<Canvas>().Where(i => i.renderMode == m_renderMode));
+			var tmp = new List<Canvas>(FindObjectsOfType<Canvas>().Where(i => i.renderMode == m_renderMode));
 			if (!string.IsNullOrEmpty(m_searchString))
 			{
 				tmp.RemoveAll(i => !i.name.Contains(m_searchString));

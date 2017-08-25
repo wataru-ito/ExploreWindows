@@ -47,13 +47,10 @@ namespace ExplorerWindows
 
 		protected override void OnGUI()
 		{
-			// Update Parameter
-			{
-				m_layerOptions = Enumerable.Range(0, 32)
-					.Select(i => LayerMask.LayerToName(i))
-					.ToArray();
-			}
-
+			m_layerOptions = Enumerable.Range(0, 32)
+				.Select(i => LayerMask.LayerToName(i))
+				.ToArray();
+	
 			base.OnGUI();
 		}
 
@@ -67,16 +64,14 @@ namespace ExplorerWindows
 			return m_columns;
 		}
 
-		protected override List<Camera> GetItemList()
+		protected override List<Camera> GetItemList(List<Camera> prev)
 		{
 			var tmp = new List<Camera>(Camera.allCameras);
 
 			// ここで寝かせた奴はここで有効にしたいので追加しておく
-			if (m_itemList != null)
-			{
-				tmp.AddRange(m_itemList.Where(i => !i.enabled));
-				tmp.Sort(CameraCompareTo);
-			}
+			// > 通常寝た奴はそもそもCamera.allCamerasで取得されない
+			tmp.AddRange(prev.Where(i => i && !i.enabled));
+			tmp.Sort(CameraCompareTo);
 
 			if (!string.IsNullOrEmpty(m_searchString))
 			{

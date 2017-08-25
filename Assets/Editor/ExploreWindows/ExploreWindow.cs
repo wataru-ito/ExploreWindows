@@ -35,7 +35,7 @@ namespace ExplorerWindows
 		const float kSepalatorWidth = 4;
 		const float kItemPaddingX = 4;
 
-		protected List<T> m_itemList = new List<T>();
+		List<T> m_itemList = new List<T>();
 
 		protected GUIStyle m_labelStyle;
 		Vector2 m_scrollPosition;
@@ -98,7 +98,7 @@ namespace ExplorerWindows
 		//------------------------------------------------------
 
 		protected abstract Column[] GetColumns();
-		protected abstract List<T> GetItemList();
+		protected abstract List<T> GetItemList(List<T> prev);
 		protected abstract void DrawHeader();
 
 
@@ -198,7 +198,7 @@ namespace ExplorerWindows
 		void DrawList()
 		{
 			var columns = GetColumns();
-			m_itemList = GetItemList();
+			m_itemList = GetItemList(m_itemList);
 
 			GUILayout.Box(GUIContent.none,
 				GUILayout.ExpandWidth(true),
