@@ -11,21 +11,31 @@ namespace ExplorerWindows
 	/// Componentの一覧を表示するエディタの基底クラス
 	/// </summary>
 	public abstract class ExploreWindow<T> : EditorWindow
-		where T : UnityEngine.Component
+		where T : Component
 	{
+		protected delegate void ColumnDrawer(Rect position, T item, bool selected);
+
 		protected class Column
 		{
 			public readonly string name;
-			public readonly GUIContent sepalatorContent;
-			public float width;
-			public Action<Rect, T> DrawField;
+			public ColumnDrawer drawer;
+			float m_width;
+			float m_widthMin;
+			bool m_flexible;
 
-			public Column(string name, float width, Action<Rect, T> DrawField)
+			public Column(string name, float width, ColumnDrawer drawer, float widthMin = 20, bool flexible = true)
 			{
 				this.name = name;
-				this.sepalatorContent = new GUIContent();
-				this.width = width;
-				this.DrawField = DrawField;
+				this.drawer = drawer; 
+				m_width = Mathf.Max(widthMin, width);
+				m_widthMin = widthMin;
+				m_flexible = flexible;
+			}
+
+			public float width
+			{ 
+				get { return m_width; }
+				set { if (m_flexible) m_width = Mathf.Max(m_widthMin, value); }
 			}
 		}
 
@@ -34,11 +44,17 @@ namespace ExplorerWindows
 		const float kSepalatorWidth = 4;
 		const float kItemPaddingX = 4;
 
+		Column m_nameColumn;
 		List<T> m_itemList = new List<T>();
 
-		protected GUIStyle m_labelStyle;
 		Vector2 m_scrollPosition;
-		Rect m_scrollRect;
+		GUIStyle m_labelStyle;
+		GUIStyle m_backgroundStyle;
+
+		Column m_selected;
+		Vector2 m_dragBeganPosition;
+		float m_widthBegan;
+
 
 
 		//------------------------------------------------------
@@ -88,7 +104,10 @@ namespace ExplorerWindows
 				GUILayout.Space(12);
 			}
 
-			EventProcedure();
+			if (m_selected != null)
+			{
+				EditorGUIUtility.AddCursorRect(new Rect(0, 0, position.width, position.height), MouseCursor.ResizeHorizontal);
+			}
 		}
 
 
@@ -105,23 +124,191 @@ namespace ExplorerWindows
 		// events
 		//------------------------------------------------------
 
-		void EventProcedure()
+	
+
+		//------------------------------------------------------
+		// gui
+		//------------------------------------------------------
+
+		void InitGUI()
 		{
-			switch (Event.current.type)
+			m_nameColumn = new Column("Name", 120f, NameField, 100f);
+			
+			// 以前は自前のguiskinを持っていたが、free/proのスキン切替失念してた。
+			// 今のスキンから複製する方が安い
+			var skin = EditorGUIUtility.GetBuiltinSkin(EditorSkin.Inspector);
+			m_backgroundStyle = skin.FindStyle("CN EntryBackOdd");
+
+			var style = skin.FindStyle("Hi Label");
+			if (style != null)
 			{
+				m_labelStyle = new GUIStyle(style);
+				m_labelStyle.padding.left = 4;
+			}
+		}
+
+		void DrawList()
+		{
+			var columns = GetColumns();
+			m_itemList = GetItemList(m_itemList);
+
+			var r = GUILayoutUtility.GetRect(0, 0, GUILayout.ExpandWidth(true), GUILayout.ExpandHeight(true));
+			if (Event.current.type == EventType.Repaint)
+			{
+				GUI.skin.box.Draw(r, GUIContent.none, 0);
+			}
+
+			var height = DrawColumns(r, columns);
+			r.y += height;
+			r.height -= height;
+
+			// この後描画されるbackgrounで枠線が消えてしまうので削る
+			r.x += 1f;
+			r.width -= 2f;
+			r.height -= 1f;
+			DrawItems(r, columns);
+		}
+
+		//------------------------------------------------------
+		// カラム部
+		//------------------------------------------------------
+
+		float DrawColumns(Rect position, Column[] columns)
+		{
+			var columnRect = new Rect(position.x, position.y, position.width, kHeaderHeight);
+			GUI.Box(columnRect, GUIContent.none);
+
+			var viewRect = new Rect(0, 0, position.width, kHeaderHeight);
+			using (new GUI.ScrollViewScope(columnRect, m_scrollPosition, viewRect, GUIStyle.none, GUIStyle.none))
+			{
+				var x = kItemPaddingX;
+				x = DrawColumn(x, m_nameColumn);
+				foreach (var column in columns)
+				{
+					x = DrawColumn(x, column);
+				}
+			}
+
+			return kHeaderHeight;
+		}
+
+		float DrawColumn(float x, Column column)
+		{
+			var position = new Rect(x,
+				kHeaderHeight - kItemHeight - 2,
+				column.width,
+				kItemHeight);
+			
+			EditorGUI.LabelField(position, column.name);
+			position.x += position.width;
+
+			position = new Rect(position.x, position.y - 6, kSepalatorWidth, position.height + 4);
+			DrawSeparator(position, column);
+
+			return position.xMax;
+		}
+
+		void DrawSeparator(Rect position, Column column)
+		{
+			EditorGUIUtility.AddCursorRect(position, MouseCursor.ResizeHorizontal);
+
+			var controlID = GUIUtility.GetControlID(FocusType.Passive);
+			var ev = Event.current;
+			switch (ev.GetTypeForControl(controlID))
+			{
+				case EventType.Repaint:
+					// 微妙にLightingExplorerの仕切りと違うのでもっといいスタイルを探す
+					// > むしろ Handle.DrawLine か？
+					EditorGUI.LabelField(position, GUIContent.none, "DopesheetBackground");
+					break;
+
 				case EventType.MouseDown:
-					if (m_scrollRect.Contains(Event.current.mousePosition))
+					if (position.Contains(ev.mousePosition) && ev.button == 0)
 					{
-						OnCanvasSelected(Event.current);
-						Repaint();
+						GUIUtility.hotControl = controlID;
+						m_selected = column;
+						m_dragBeganPosition = ev.mousePosition;
+						m_widthBegan = column == null ? 0 : column.width;
+						ev.Use();
+					}
+					break;
+
+				case EventType.MouseDrag:
+					if (GUIUtility.hotControl == controlID && m_selected != null)
+					{
+						m_selected.width = m_widthBegan + (ev.mousePosition.x - m_dragBeganPosition.x);
+						GUI.changed = true;
+						ev.Use();
+					}
+					break;
+
+				case EventType.MouseUp:
+					if(GUIUtility.hotControl == controlID)
+					{
+						GUIUtility.hotControl = 0;
+						m_selected = null;
+						ev.Use();
 					}
 					break;
 			}
 		}
 
-		void OnCanvasSelected(Event ev)
+		//------------------------------------------------------
+		// アイテム
+		//------------------------------------------------------
+
+		void DrawItems(Rect position, Column[] columns)
 		{
-			var index = Mathf.FloorToInt((ev.mousePosition.y - m_scrollRect.y + m_scrollPosition.y) / kItemHeight);
+			var viewRect = new Rect(0, 0,
+				GetContentWidth(columns),
+				m_itemList.Count * kItemHeight);
+
+			using (var scroll = new GUI.ScrollViewScope(position, m_scrollPosition, viewRect))
+			{
+				var ev = Event.current;
+
+				var min = Mathf.FloorToInt(m_scrollPosition.y / kItemHeight);
+				var max = min + Mathf.CeilToInt(position.height / kItemHeight);
+
+				// 背景の縞々
+				if (ev.type == EventType.Repaint)
+				{
+					var prev = GUI.color;
+					var gray = new Color(prev.r * 0.95f, prev.g * 0.95f, prev.b * 0.95f);
+					for (int i = min; i < max; ++i)
+					{
+						var area = new Rect(m_scrollPosition.x, i * kItemHeight, position.width, kItemHeight);
+						GUI.color = i % 2 == 1 ? prev : gray;
+						m_backgroundStyle.Draw(area, GUIContent.none, 0);
+					}
+					GUI.color = prev;
+				}
+
+				// 本体
+				// 未表示部分も回さないとControlIDズレるんだよなぁ…
+				for (int i = min; i < Mathf.Min(m_itemList.Count, max); ++i)
+				{
+					var itemPosition = new Rect(0, i * kItemHeight, position.width, kItemHeight);
+					DrawItem(itemPosition, columns, m_itemList[i]);
+				}
+
+				switch (ev.type)
+				{
+					case EventType.MouseDown:
+						SelectItem(ev);
+						break;
+				}
+
+				m_scrollPosition = scroll.scrollPosition;
+			}			
+		}
+
+		void SelectItem(Event ev)
+		{
+			if (ev.mousePosition.y < 0)
+				return;
+
+			var index = Mathf.FloorToInt(ev.mousePosition.y / kItemHeight);
 			if (index >= m_itemList.Count)
 			{
 				Selection.activeGameObject = null;
@@ -145,6 +332,7 @@ namespace ExplorerWindows
 					gos.Add(targetGO);
 				}
 				Selection.objects = gos.ToArray();
+				ev.Use();
 				return;
 			}
 			else if (ev.shift)
@@ -161,148 +349,29 @@ namespace ExplorerWindows
 						objects[i] = m_itemList[firstIndex].gameObject;
 					}
 					Selection.objects = objects;
+					ev.Use();
 					return;
 				}
 			}
 
 			Selection.activeGameObject = m_itemList[index].gameObject;
+			ev.Use();
 		}
 
 		bool IsSelectionAdditive(Event ev)
 		{
-#if UNITY_EDITOR_OSX
+			#if UNITY_EDITOR_OSX
 			return ev.command;
-#else
+			#else
 			return ev.control;
-#endif
+			#endif
 		}
 
 
-		//------------------------------------------------------
-		// gui
-		//------------------------------------------------------
-
-		void InitGUI()
-		{
-			// 以前は自前のguiskinを持っていたが、free/proのスキン切替失念してた。
-			// 今のスキンから複製する方が安い
-			var skin = EditorGUIUtility.GetBuiltinSkin(EditorSkin.Inspector);
-			var style = skin.FindStyle("Hi Label");
-			if (style == null) return;
-
-			m_labelStyle = new GUIStyle(style);
-			m_labelStyle.padding.left = 4;
-		}
-
-		void DrawList()
-		{
-			var columns = GetColumns();
-			m_itemList = GetItemList(m_itemList);
-
-			GUILayout.Box(GUIContent.none,
-				GUILayout.ExpandWidth(true),
-				GUILayout.ExpandHeight(true));
-
-			var r = GUILayoutUtility.GetLastRect();
-			r = DrawColumns(r, columns);
-
-			// この後描画されるbackgrounで枠線が消えてしまうので削る
-			r.x += 1f;
-			r.width -= 2f;
-			r.height -= 1f;
-			m_scrollRect = r;
-
-			DrawBackground();
-
-			var viewRect = new Rect(0, 0,
-				GetContentWidth(columns),
-				m_itemList.Count * kItemHeight);
-			using (var scroll = new GUI.ScrollViewScope(m_scrollRect, m_scrollPosition, viewRect))
-			{
-				var itemPosition = new Rect(0, 0, Mathf.Max(viewRect.width, m_scrollRect.width), kItemHeight);
-				foreach (var item in m_itemList)
-				{
-					itemPosition = DrawItem(itemPosition, columns, item);
-				}
-
-				// アイテム描画した後に更新しないとDrawBackground()とズレる
-				m_scrollPosition = scroll.scrollPosition;
-			}
-		}
-
-		Rect DrawColumns(Rect area, Column[] columns)
-		{
-			var position = new Rect(area.x, area.y, area.width, kHeaderHeight);
-			var viewRect = new Rect(0, 0, area.width, kHeaderHeight);
-
-			GUI.Box(position, GUIContent.none);
-			GUI.BeginScrollView(position, m_scrollPosition, viewRect);
-			{
-				var r = new Rect(
-					kItemPaddingX - m_scrollPosition.x,
-					kHeaderHeight - kItemHeight - 2,
-					0,
-					kItemHeight);
-
-				foreach (var column in columns)
-				{
-					r.width = column.width;
-					EditorGUI.LabelField(r, column.name);
-					r.x += r.width;
-
-					r = DrawColumSeparator(r, column);
-				}
-			}
-			GUI.EndScrollView();
-
-			area.y += kHeaderHeight;
-			area.height -= kHeaderHeight;
-			return area;
-		}
-
-		static Rect DrawColumSeparator(Rect r, Column column)
-		{
-			// 微妙にLightingExplorerの仕切りと違うのでもっといいスタイルを探す
-			EditorGUI.LabelField(
-				new Rect(
-					r.x,
-					r.y - 6,
-					kSepalatorWidth,
-					r.height + 4),
-				column.sepalatorContent,
-				"DopesheetBackground");
-
-			r.x += kSepalatorWidth;
-			return r;
-		}
-
-		void DrawBackground()
-		{
-			var prev = GUI.color;
-			var gray = new Color(prev.r * 0.95f, prev.g * 0.95f, prev.b * 0.95f);
-			var style = GUI.skin.FindStyle("CN EntryBackOdd");
-
-			float y = m_scrollRect.yMin - m_scrollPosition.y;
-			for (int i = 0; y < m_scrollRect.yMax; ++i, y += kItemHeight)
-			{
-				if (y + kItemHeight <= m_scrollRect.yMin) continue;
-				if (y >= m_scrollRect.yMax) continue;
-
-				var itemPisition = new Rect(m_scrollRect.x,
-					Mathf.Max(y, m_scrollRect.y),
-					m_scrollRect.width,
-					Mathf.Min(kItemHeight, m_scrollRect.yMax - y));
-
-				GUI.color = i % 2 == 1 ? prev : gray;
-				GUI.Box(itemPisition, GUIContent.none, style);
-			}
-
-			GUI.color = prev;
-		}
-
-		static float GetContentWidth(Column[] columns)
+		float GetContentWidth(Column[] columns)
 		{
 			float width = kItemPaddingX * 2f;
+			width += m_nameColumn.width + kSepalatorWidth;
 			foreach (var column in columns)
 			{
 				width += column.width + kSepalatorWidth;
@@ -310,30 +379,35 @@ namespace ExplorerWindows
 			return width;
 		}
 
-		Rect DrawItem(Rect itemPosition, Column[] columns, T item)
+		void DrawItem(Rect position, Column[] columns, T item)
 		{
-			var styleState = GetStyleState(Selection.gameObjects.Contains(item.gameObject));
-			if (styleState.background)
-				GUI.DrawTexture(itemPosition, styleState.background);
-
-			var r = itemPosition;
-			r.x += kItemPaddingX;
-			foreach (var column in columns)
+			var selected = Selection.gameObjects.Contains(item.gameObject);
+			if (Event.current.type == EventType.Repaint)
 			{
-				r.width = column.width;
-				column.DrawField(r, item);
-				r.x += (r.width + kSepalatorWidth);
+				m_labelStyle.Draw(position, selected && focusedWindow == this, false, selected, false);
 			}
 
-			itemPosition.y += r.height;
-			return itemPosition;
+			position.x += kItemPaddingX;
+			position.x = DrawItem(position, m_nameColumn, item, selected);
+			foreach (var column in columns)
+			{
+				position.x = DrawItem(position, column, item, selected);
+			}
 		}
 
-		GUIStyleState GetStyleState(bool selected)
+		float DrawItem(Rect position, Column column, T item, bool selected)
 		{
-			if (selected)
-				return EditorWindow.focusedWindow == this ? m_labelStyle.onActive : m_labelStyle.onNormal;
-			return m_labelStyle.normal;
+			position.width = column.width;
+			column.drawer(position, item, selected);
+			return position.xMax + kSepalatorWidth;
+		}
+
+		void NameField(Rect r, T component, bool selected)
+		{
+			if (Event.current.type == EventType.Repaint)
+			{
+				m_labelStyle.Draw(r, new GUIContent(component.name), selected && focusedWindow == this, false, selected, false);
+			}
 		}
 	}
 }

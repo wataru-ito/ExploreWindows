@@ -50,23 +50,20 @@ namespace ExplorerWindows
 
 			m_columnsScreenOverlay = new Column[]
 			{
-				new Column("Name", 120f, NameField),
-				new Column("On", 26f, EnabledField),
+				new Column("On", 26f, EnabledField, flexible:false),
 				new Column("Sorting Layer", 100f, SortingLayerField),
 				new Column("Order in Layer", 100f, SortingOrderField),
 			};
 			m_columnsScreenCamera = new Column[]
 			{
-				new Column("Name", 120f, NameField),
-				new Column("On", 26f, EnabledField),
+				new Column("On", 26f, EnabledField, flexible:false),
 				new Column("Camera", 100f, CameraField),
 				new Column("Sorting Layer", 100f, SortingLayerField),
 				new Column("Order in Layer", 100f, SortingOrderField),
 			};
 			m_columnsWorldSpace = new Column[]
 			{
-				new Column("Name", 120f, NameField),
-				new Column("On", 26f, EnabledField),
+				new Column("On", 26f, EnabledField, flexible:false),
 				new Column("Camera", 100f, CameraField),
 				new Column("Sorting Layer", 100f, SortingLayerField),
 				new Column("Order in Layer", 100f, SortingOrderField),
@@ -174,29 +171,24 @@ namespace ExplorerWindows
 		// Canvas column field
 		//------------------------------------------------------
 
-		void NameField(Rect r, Canvas canvas)
-		{
-			EditorGUI.LabelField(r, canvas.name, m_labelStyle);
-		}
-
-		void EnabledField(Rect r, Canvas canvas)
+		void EnabledField(Rect r, Canvas canvas, bool selected)
 		{
 			canvas.enabled = EditorGUI.Toggle(r, canvas.enabled);
 		}
 
-		void CameraField(Rect r, Canvas canvas)
+		void CameraField(Rect r, Canvas canvas, bool selected)
 		{
 			canvas.worldCamera = EditorGUI.ObjectField(r, canvas.worldCamera, typeof(Camera), true) as Camera;
 		}
 
-		void SortingLayerField(Rect r, Canvas canvas)
+		void SortingLayerField(Rect r, Canvas canvas, bool selected)
 		{
 			canvas.sortingLayerID = EditorGUI.IntPopup(r, canvas.sortingLayerID,
 				m_sortingLayerNames,
 				m_sortingLayerUniquIDs);
 		}
 
-		void SortingOrderField(Rect r, Canvas canvas)
+		void SortingOrderField(Rect r, Canvas canvas, bool selected)
 		{
 			canvas.sortingOrder = EditorGUI.IntField(r, canvas.sortingOrder);
 		}

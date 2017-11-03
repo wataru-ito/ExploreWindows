@@ -35,23 +35,21 @@ namespace ExplorerWindows
 
 			m_columns = new Column[]
 			{
-				new Column("Name", 120f, NameField),
-				new Column("On", 26f, EnabledField),
+				new Column("On", 26f, EnabledField, flexible:false),
 				new Column("Depth", 60f, DepthField),
 				new Column("Culling Mask", 120f, CullingMaskField),
 				new Column("Clear Flags", 200f, ClearFlagsField),
 			};
 
+			UpdateLayerOptions();
+
 			base.OnEnable();
 		}
 
-		protected override void OnGUI()
+		protected override void OnFocus()
 		{
-			m_layerOptions = Enumerable.Range(0, 32)
-				.Select(i => LayerMask.LayerToName(i))
-				.ToArray();
-	
-			base.OnGUI();
+			base.OnFocus();
+			UpdateLayerOptions();
 		}
 
 
@@ -106,27 +104,29 @@ namespace ExplorerWindows
 		// camera column field
 		//------------------------------------------------------
 
-		void NameField(Rect r, Camera camera)
+		void UpdateLayerOptions()
 		{
-			EditorGUI.LabelField(r, camera.name, m_labelStyle);
+			m_layerOptions = Enumerable.Range(0, 32)
+					.Select(i => LayerMask.LayerToName(i))
+					.ToArray();
 		}
 
-		void EnabledField(Rect r, Camera camera)
+		void EnabledField(Rect r, Camera camera, bool selected)
 		{
 			camera.enabled = EditorGUI.Toggle(r, camera.enabled);
 		}
 
-		void DepthField(Rect r, Camera camera)
+		void DepthField(Rect r, Camera camera, bool selected)
 		{
 			camera.depth = EditorGUI.FloatField(r, camera.depth);
 		}
 
-		void CullingMaskField(Rect r, Camera camera)
+		void CullingMaskField(Rect r, Camera camera, bool selected)
 		{
 			camera.cullingMask = EditorGUI.MaskField(r, GUIContent.none, camera.cullingMask, m_layerOptions);
 		}
 
-		void ClearFlagsField(Rect r, Camera camera)
+		void ClearFlagsField(Rect r, Camera camera, bool selected)
 		{
 			camera.clearFlags = (CameraClearFlags)EditorGUI.EnumPopup(r, camera.clearFlags);
 		}
