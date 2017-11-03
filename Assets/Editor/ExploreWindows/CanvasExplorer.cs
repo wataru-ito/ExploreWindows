@@ -48,25 +48,30 @@ namespace ExplorerWindows
 			titleContent = new GUIContent("Canvas Explorer");
 			minSize = new Vector2(500, 150);
 
+			var on = new Column("On", 26f, EnabledField, CompareEnabled, flexible: false);
+			var cam = new Column("Camera", 100f, CameraField, CompareCamera);
+			var sortingLayer = new Column("Sorting Layer", 100f, SortingLayerField, CompareSortingLayer);
+			var sortingOrder = new Column("Order in Layer", 100f, SortingOrderField, CompareSortingOrder);
+
 			m_columnsScreenOverlay = new Column[]
 			{
-				new Column("On", 26f, EnabledField, flexible:false),
-				new Column("Sorting Layer", 100f, SortingLayerField),
-				new Column("Order in Layer", 100f, SortingOrderField),
+				on,
+				sortingLayer,
+				sortingOrder,
 			};
 			m_columnsScreenCamera = new Column[]
 			{
-				new Column("On", 26f, EnabledField, flexible:false),
-				new Column("Camera", 100f, CameraField),
-				new Column("Sorting Layer", 100f, SortingLayerField),
-				new Column("Order in Layer", 100f, SortingOrderField),
+				on,
+				cam,
+				sortingLayer,
+				sortingOrder,
 			};
 			m_columnsWorldSpace = new Column[]
 			{
-				new Column("On", 26f, EnabledField, flexible:false),
-				new Column("Camera", 100f, CameraField),
-				new Column("Sorting Layer", 100f, SortingLayerField),
-				new Column("Order in Layer", 100f, SortingOrderField),
+				on,
+				cam,
+				sortingLayer,
+				sortingOrder,
 			};
 
 			base.OnEnable();
@@ -110,32 +115,9 @@ namespace ExplorerWindows
 				tmp.RemoveAll(i => !i.name.Contains(m_searchString));
 			}
 
-			tmp.Sort(CanvasCompareTo);
-
 			return tmp;
 		}
 
-		int CanvasCompareTo(Canvas x, Canvas y)
-		{
-			int result = 0;
-
-			switch (m_renderMode)
-			{
-				case RenderMode.ScreenSpaceCamera:
-				case RenderMode.WorldSpace:
-					result = GetCameraDepth(x).CompareTo(GetCameraDepth(y));
-					if (result != 0) return result;
-					break;
-			}
-
-			result = Array.IndexOf(m_sortingLayerUniquIDs, x.sortingLayerID).CompareTo(Array.IndexOf(m_sortingLayerUniquIDs, y.sortingLayerID));
-			if (result != 0) return result;
-
-			result = x.sortingOrder.CompareTo(y.sortingOrder);
-			if (result != 0) return result;
-
-			return x.name.CompareTo(y.name);
-		}
 
 		static float GetCameraDepth(Canvas canvas)
 		{
@@ -176,9 +158,27 @@ namespace ExplorerWindows
 			canvas.enabled = EditorGUI.Toggle(r, canvas.enabled);
 		}
 
+		int CompareEnabled(Canvas x, Canvas y)
+		{
+			var res = x.enabled.CompareTo(y.enabled);
+			return res != 0 ? res : x.name.CompareTo(y.name);
+		}
+
 		void CameraField(Rect r, Canvas canvas, bool selected)
 		{
 			canvas.worldCamera = EditorGUI.ObjectField(r, canvas.worldCamera, typeof(Camera), true) as Camera;
+		}
+
+		int CompareCamera(Canvas x, Canvas y)
+		{
+			if (x.worldCamera == null && y.worldCamera == null)
+			{
+				return x.name.CompareTo(y.name);
+			}
+
+			if (x.worldCamera == null) return -1;
+			if (y.worldCamera == null) return 1;
+			return x.worldCamera.name.CompareTo(y.worldCamera.name);
 		}
 
 		void SortingLayerField(Rect r, Canvas canvas, bool selected)
@@ -188,9 +188,24 @@ namespace ExplorerWindows
 				m_sortingLayerUniquIDs);
 		}
 
+		int CompareSortingLayer(Canvas x, Canvas y)
+		{
+			var res = x.sortingLayerName.CompareTo(y.sortingLayerName);
+			return res != 0 ? res : x.name.CompareTo(y.name);
+		}
+		
 		void SortingOrderField(Rect r, Canvas canvas, bool selected)
 		{
 			canvas.sortingOrder = EditorGUI.IntField(r, canvas.sortingOrder);
+		}
+
+		int CompareSortingOrder(Canvas x, Canvas y)
+		{
+			var res = CompareSortingLayer(x, y);
+			if (res != 0) return res;
+			
+			res = x.sortingOrder.CompareTo(y.sortingOrder);
+			return res != 0 ? res : x.name.CompareTo(y.name);
 		}
 
 

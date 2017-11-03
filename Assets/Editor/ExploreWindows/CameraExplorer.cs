@@ -35,10 +35,10 @@ namespace ExplorerWindows
 
 			m_columns = new Column[]
 			{
-				new Column("On", 26f, EnabledField, flexible:false),
-				new Column("Depth", 60f, DepthField),
-				new Column("Culling Mask", 120f, CullingMaskField),
-				new Column("Clear Flags", 200f, ClearFlagsField),
+				new Column("On", 26f, EnabledField, CompareEnabled, flexible:false),
+				new Column("Depth", 60f, DepthField, CompareDepth),
+				new Column("Culling Mask", 120f, CullingMaskField, CompareCullingMask),
+				new Column("Clear Flags", 200f, ClearFlagsField, CompareClearFlags),
 			};
 
 			UpdateLayerOptions();
@@ -69,7 +69,6 @@ namespace ExplorerWindows
 			// ここで寝かせた奴はここで有効にしたいので追加しておく
 			// > 通常寝た奴はそもそもCamera.allCamerasで取得されない
 			tmp.AddRange(prev.Where(i => i && !i.enabled));
-			tmp.Sort(CameraCompareTo);
 
 			if (!string.IsNullOrEmpty(m_searchString))
 			{
@@ -79,11 +78,6 @@ namespace ExplorerWindows
 			return tmp;
 		}
 
-		static int CameraCompareTo(Camera x, Camera y)
-		{
-			var result = x.depth.CompareTo(y.depth);
-			return result == 0 ? x.name.CompareTo(y.name) : result;
-		}
 
 		protected override void DrawHeader()
 		{
@@ -116,19 +110,43 @@ namespace ExplorerWindows
 			camera.enabled = EditorGUI.Toggle(r, camera.enabled);
 		}
 
+		int CompareEnabled(Camera x, Camera y)
+		{
+			var res = x.enabled.CompareTo(y.enabled);
+			return res != 0 ? res : x.name.CompareTo(y.name);
+		}
+
 		void DepthField(Rect r, Camera camera, bool selected)
 		{
 			camera.depth = EditorGUI.FloatField(r, camera.depth);
 		}
 
+		int CompareDepth(Camera x, Camera y)
+		{
+			var res = x.depth.CompareTo(y.depth);
+			return res != 0 ? res : x.name.CompareTo(y.name);
+		}
+		
 		void CullingMaskField(Rect r, Camera camera, bool selected)
 		{
 			camera.cullingMask = EditorGUI.MaskField(r, GUIContent.none, camera.cullingMask, m_layerOptions);
 		}
 
+		int CompareCullingMask(Camera x, Camera y)
+		{
+			var res = x.cullingMask.CompareTo(y.cullingMask);
+			return res != 0 ? res : x.name.CompareTo(y.name);
+		}
+
 		void ClearFlagsField(Rect r, Camera camera, bool selected)
 		{
 			camera.clearFlags = (CameraClearFlags)EditorGUI.EnumPopup(r, camera.clearFlags);
+		}
+
+		int CompareClearFlags(Camera x, Camera y)
+		{
+			var res = x.clearFlags.CompareTo(y.clearFlags);
+			return res != 0 ? res : x.name.CompareTo(y.name);
 		}
 	}
 }

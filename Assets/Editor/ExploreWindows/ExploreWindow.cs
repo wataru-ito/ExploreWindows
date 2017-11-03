@@ -18,15 +18,17 @@ namespace ExplorerWindows
 		protected class Column
 		{
 			public readonly string name;
-			public ColumnDrawer drawer;
+			public readonly ColumnDrawer drawer;
+			public readonly Comparison<T> comparer;
 			float m_width;
 			float m_widthMin;
 			bool m_flexible;
 
-			public Column(string name, float width, ColumnDrawer drawer, float widthMin = 20, bool flexible = true)
+			public Column(string name, float width, ColumnDrawer drawer, Comparison<T> comparer, float widthMin = 20, bool flexible = true)
 			{
 				this.name = name;
-				this.drawer = drawer; 
+				this.drawer = drawer;
+				this.comparer = comparer;
 				m_width = Mathf.Max(widthMin, width);
 				m_widthMin = widthMin;
 				m_flexible = flexible;
@@ -43,6 +45,10 @@ namespace ExplorerWindows
 		const float kItemHeight = 16f;
 		const float kSepalatorWidth = 4;
 		const float kItemPaddingX = 4;
+
+		Texture m_sortIcon;
+		Column m_sorter;
+		bool m_sortReverse;
 
 		Column m_nameColumn;
 		List<T> m_itemList = new List<T>();
@@ -85,12 +91,6 @@ namespace ExplorerWindows
 
 		protected virtual void OnGUI()
 		{
-			if (m_labelStyle == null)
-			{
-				EditorGUILayout.HelpBox("guiskin initialize failed.", MessageType.Error);
-				return;
-			}
-
 			using (new EditorGUILayout.HorizontalScope())
 			{
 				GUILayout.Space(12);
@@ -121,19 +121,17 @@ namespace ExplorerWindows
 
 
 		//------------------------------------------------------
-		// events
-		//------------------------------------------------------
-
-	
-
-		//------------------------------------------------------
 		// gui
 		//------------------------------------------------------
 
 		void InitGUI()
 		{
-			m_nameColumn = new Column("Name", 120f, NameField, 100f);
+			m_nameColumn = new Column("Name", 120f, NameField, CompareName, 100f);
 			
+			m_sorter = m_nameColumn;
+			m_sortReverse = false;
+			m_sortIcon = EditorGUIUtility.LoadRequired("ShurikenDropdown") as Texture;
+
 			// 以前は自前のguiskinを持っていたが、free/proのスキン切替失念してた。
 			// 今のスキンから複製する方が安い
 			var skin = EditorGUIUtility.GetBuiltinSkin(EditorSkin.Inspector);
@@ -151,13 +149,18 @@ namespace ExplorerWindows
 		{
 			var columns = GetColumns();
 			m_itemList = GetItemList(m_itemList);
-
-			var r = GUILayoutUtility.GetRect(0, 0, GUILayout.ExpandWidth(true), GUILayout.ExpandHeight(true));
-			if (Event.current.type == EventType.Repaint)
+			if (m_sortReverse)
 			{
-				GUI.skin.box.Draw(r, GUIContent.none, 0);
+				m_itemList.Sort((x, y) => m_sorter.comparer(y, x));
+			}
+			else
+			{
+				m_itemList.Sort(m_sorter.comparer);
 			}
 
+			var r = GUILayoutUtility.GetRect(0, 0, GUILayout.ExpandWidth(true), GUILayout.ExpandHeight(true));
+			GUI.Box(r, GUIContent.none);
+			
 			var height = DrawColumns(r, columns);
 			r.y += height;
 			r.height -= height;
@@ -194,42 +197,59 @@ namespace ExplorerWindows
 
 		float DrawColumn(float x, Column column)
 		{
+			var controlID = GUIUtility.GetControlID(FocusType.Passive);
+			var ev = Event.current;
+
 			var position = new Rect(x,
 				kHeaderHeight - kItemHeight - 2,
 				column.width,
 				kItemHeight);
-			
-			EditorGUI.LabelField(position, column.name);
-			position.x += position.width;
+			var separator = new Rect(position.xMax, position.y - 6, kSepalatorWidth, position.height + 4);
+			EditorGUIUtility.AddCursorRect(separator, MouseCursor.ResizeHorizontal);
 
-			position = new Rect(position.x, position.y - 6, kSepalatorWidth, position.height + 4);
-			DrawSeparator(position, column);
-
-			return position.xMax;
-		}
-
-		void DrawSeparator(Rect position, Column column)
-		{
-			EditorGUIUtility.AddCursorRect(position, MouseCursor.ResizeHorizontal);
-
-			var controlID = GUIUtility.GetControlID(FocusType.Passive);
-			var ev = Event.current;
 			switch (ev.GetTypeForControl(controlID))
 			{
 				case EventType.Repaint:
+					if (m_sorter == column)
+					{
+						var iconPosition = new Rect(position.x + (position.width - m_sortIcon.width) * 0.5f, 0, m_sortIcon.width, m_sortIcon.height);
+						if (m_sortReverse)
+						{
+							iconPosition.y = m_sortIcon.height;
+							iconPosition.height = -m_sortIcon.height;
+						}
+						GUI.DrawTexture(iconPosition, m_sortIcon);
+					}
+
+					EditorGUI.LabelField(position, column.name);
+
 					// 微妙にLightingExplorerの仕切りと違うのでもっといいスタイルを探す
 					// > むしろ Handle.DrawLine か？
-					EditorGUI.LabelField(position, GUIContent.none, "DopesheetBackground");
+					EditorGUI.LabelField(separator, GUIContent.none, "DopesheetBackground");
 					break;
 
 				case EventType.MouseDown:
 					if (position.Contains(ev.mousePosition) && ev.button == 0)
+					{
+						if (m_sorter == column)
+						{
+							m_sortReverse = !m_sortReverse;
+						}
+						else
+						{
+							m_sorter = column;
+						}
+						ev.Use();
+						break;
+					}	
+					if (separator.Contains(ev.mousePosition) && ev.button == 0)
 					{
 						GUIUtility.hotControl = controlID;
 						m_selected = column;
 						m_dragBeganPosition = ev.mousePosition;
 						m_widthBegan = column == null ? 0 : column.width;
 						ev.Use();
+						break;
 					}
 					break;
 
@@ -251,6 +271,8 @@ namespace ExplorerWindows
 					}
 					break;
 			}
+
+			return separator.xMax;
 		}
 
 		//------------------------------------------------------
@@ -289,7 +311,7 @@ namespace ExplorerWindows
 				for (int i = min; i < Mathf.Min(m_itemList.Count, max); ++i)
 				{
 					var itemPosition = new Rect(0, i * kItemHeight, position.width, kItemHeight);
-					DrawItem(itemPosition, columns, m_itemList[i]);
+					DrawItem(itemPosition, columns, m_itemList[i], i);
 				}
 
 				switch (ev.type)
@@ -307,6 +329,8 @@ namespace ExplorerWindows
 		{
 			if (ev.mousePosition.y < 0)
 				return;
+
+			GUI.FocusControl(string.Empty);
 
 			var index = Mathf.FloorToInt(ev.mousePosition.y / kItemHeight);
 			if (index >= m_itemList.Count)
@@ -332,7 +356,6 @@ namespace ExplorerWindows
 					gos.Add(targetGO);
 				}
 				Selection.objects = gos.ToArray();
-				ev.Use();
 				return;
 			}
 			else if (ev.shift)
@@ -349,13 +372,11 @@ namespace ExplorerWindows
 						objects[i] = m_itemList[firstIndex].gameObject;
 					}
 					Selection.objects = objects;
-					ev.Use();
 					return;
 				}
 			}
 
 			Selection.activeGameObject = m_itemList[index].gameObject;
-			ev.Use();
 		}
 
 		bool IsSelectionAdditive(Event ev)
@@ -379,7 +400,7 @@ namespace ExplorerWindows
 			return width;
 		}
 
-		void DrawItem(Rect position, Column[] columns, T item)
+		void DrawItem(Rect position, Column[] columns, T item, int index)
 		{
 			var selected = Selection.gameObjects.Contains(item.gameObject);
 			if (Event.current.type == EventType.Repaint)
@@ -402,12 +423,22 @@ namespace ExplorerWindows
 			return position.xMax + kSepalatorWidth;
 		}
 
+
+		//------------------------------------------------------
+		// name column
+		//------------------------------------------------------
+
 		void NameField(Rect r, T component, bool selected)
 		{
 			if (Event.current.type == EventType.Repaint)
 			{
 				m_labelStyle.Draw(r, new GUIContent(component.name), selected && focusedWindow == this, false, selected, false);
 			}
+		}
+
+		int CompareName(T x, T y)
+		{
+			return x.name.CompareTo(y.name);
 		}
 	}
 }
